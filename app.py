@@ -6,10 +6,12 @@ import streamlit as st
 from database import (
     add_employee,
     add_meeting,
+    delete_employee,
     get_employees,
     get_meetings,
     has_meeting_conflict,
     init_db,
+    update_employee_department,
 )
 
 
@@ -58,6 +60,51 @@ employee_by_label = {employee["label"]: employee for employee in employees}
 
 if employees:
     st.caption(f"В справочнике сотрудников: {len(employees)}")
+
+    with st.expander("Управление сотрудниками"):
+        selected_employee_label = st.selectbox(
+            "Выберите сотрудника",
+            options=employee_labels,
+            index=None,
+            key="employee_management_selectbox",
+        )
+
+        selected_employee = (
+            employee_by_label[selected_employee_label]
+            if selected_employee_label
+            else None
+        )
+
+        if selected_employee:
+            st.write(
+                f"Выбран сотрудник: "
+                f"{selected_employee['name']} · {selected_employee['department']}"
+            )
+
+            new_department = st.text_input(
+                "Новый отдел",
+                placeholder="Например: Продажи",
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                if st.button("Изменить отдел"):
+                    if not new_department.strip():
+                        st.error("Введите новый отдел.")
+                    else:
+                        update_employee_department(
+                            selected_employee["id"],
+                            new_department,
+                        )
+                        st.success("Отдел сотрудника обновлён.")
+                        st.rerun()
+
+            with col2:
+                if st.button("Удалить сотрудника"):
+                    delete_employee(selected_employee["id"])
+                    st.success("Сотрудник удалён из справочника.")
+                    st.rerun()
 else:
     st.info("Сначала добавьте сотрудников в справочник.")
 

@@ -135,16 +135,44 @@ def get_employees():
     with get_connection() as conn:
         cursor = conn.execute(
             """
-            SELECT name, department
+            SELECT id, name, department
             FROM employees
             ORDER BY department, name
             """
         )
         return [
             {
-                "name": row[0],
-                "department": row[1],
-                "label": f"{row[0]} · {row[1]}",
+                "id": row[0],
+                "name": row[1],
+                "department": row[2],
+                "label": f"{row[1]} · {row[2]}",
             }
             for row in cursor.fetchall()
         ]
+    
+
+def delete_employee(employee_id):
+    with get_connection() as conn:
+        conn.execute(
+            """
+            DELETE FROM employees
+            WHERE id = ?
+            """,
+            (employee_id,),
+        )
+        conn.commit()
+
+
+def update_employee_department(employee_id, new_department):
+    normalized_department = new_department.strip()
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE employees
+            SET department = ?
+            WHERE id = ?
+            """,
+            (normalized_department, employee_id),
+        )
+        conn.commit()
