@@ -62,14 +62,6 @@
 ```
 Так расписание и проверка занятости работают стабильнее.
 
-## Технологии
-
-- Python
-- Streamlit
-- SQLite
-- pandas
-- CSS
-
 ## Структура проекта
 
 ```
@@ -137,3 +129,13 @@ meetings.db
 - интеграция с Google Calendar;
 - уведомления о встречах;
 - поиск ближайшего общего свободного слота.
+
+## Стек проекта
+
+![Python](https://img.shields.io/badge/Python-000?logo=python)
+![Streamlit](https://img.shields.io/badge/Streamlit-000?logo=streamlit)
+![pandas](https://img.shields.io/badge/pandas-000?logo=pandas)
+![SQLite](https://img.shields.io/badge/SQLite-000?logo=sqlite)
+![CSS](https://img.shields.io/badge/CSS-000?logo=css3)
+![Git](https://img.shields.io/badge/Git-000?logo=git)
+![GitHub](https://img.shields.io/badge/GitHub-000?logo=github)
