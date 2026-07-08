@@ -15,11 +15,19 @@ def init_db():
             """
             CREATE TABLE IF NOT EXISTS meetings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                participant_1 TEXT NOT NULL,
-                participant_2 TEXT NOT NULL,
                 meeting_date TEXT NOT NULL,
                 start_time TEXT NOT NULL,
                 end_time TEXT NOT NULL
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS meeting_participants (
+                meeting_id INTEGER NOT NULL,
+                employee_name TEXT NOT NULL,
+                FOREIGN KEY (meeting_id) REFERENCES meetings(id)
             )
             """
         )
@@ -37,27 +45,42 @@ def init_db():
 
         conn.commit()
 
-def add_meeting(participant_1, participant_2, meeting_date, start_time, end_time):
+
+def add_meeting(participants, meeting_date, start_time, end_time):
     with get_connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO meetings (
-                participant_1,
-                participant_2,
                 meeting_date,
                 start_time,
                 end_time
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?)
             """,
             (
-                participant_1,
-                participant_2,
                 meeting_date,
                 start_time,
                 end_time,
             ),
         )
+
+        meeting_id = cursor.lastrowid
+
+        for participant in participants:
+            conn.execute(
+                """
+                INSERT INTO meeting_participants (
+                    meeting_id,
+                    employee_name
+                )
+                VALUES (?, ?)
+                """,
+                (
+                    meeting_id,
+                    participant,
+                ),
+            )
+
         conn.commit()
 
 
@@ -66,48 +89,44 @@ def get_meetings():
         cursor = conn.execute(
             """
             SELECT
-                id,
-                participant_1,
-                participant_2,
-                meeting_date,
-                start_time,
-                end_time
-            FROM meetings
-            ORDER BY meeting_date, start_time
+                m.id,
+                m.meeting_date,
+                m.start_time,
+                m.end_time,
+                GROUP_CONCAT(mp.employee_name, ', ') AS participants
+            FROM meetings m
+            JOIN meeting_participants mp ON m.id = mp.meeting_id
+            GROUP BY m.id
+            ORDER BY m.meeting_date, m.start_time
             """
         )
         return cursor.fetchall()
 
 
-def has_meeting_conflict(participant_1, participant_2, meeting_date, start_time, end_time):
-    participants = {
-        participant_1.strip().lower(),
-        participant_2.strip().lower(),
+def has_meeting_conflict(participants, meeting_date, start_time, end_time):
+    normalized_participants = {
+        participant.strip().lower()
+        for participant in participants
     }
 
     with get_connection() as conn:
         cursor = conn.execute(
             """
             SELECT
-                participant_1,
-                participant_2,
-                start_time,
-                end_time
-            FROM meetings
-            WHERE meeting_date = ?
+                m.start_time,
+                m.end_time,
+                mp.employee_name
+            FROM meetings m
+            JOIN meeting_participants mp ON m.id = mp.meeting_id
+            WHERE m.meeting_date = ?
             """,
             (meeting_date,),
         )
-        meetings = cursor.fetchall()
 
-    for existing_participant_1, existing_participant_2, existing_start, existing_end in meetings:
-        existing_participants = {
-            existing_participant_1.strip().lower(),
-            existing_participant_2.strip().lower(),
-        }
+        existing_records = cursor.fetchall()
 
-        has_same_participant = bool(participants & existing_participants)
-
+    for existing_start, existing_end, existing_employee in existing_records:
+        has_same_participant = existing_employee.strip().lower() in normalized_participants
         has_time_overlap = start_time < existing_end and end_time > existing_start
 
         if has_same_participant and has_time_overlap:
@@ -183,15 +202,16 @@ def get_meetings_by_date(meeting_date):
         cursor = conn.execute(
             """
             SELECT
-                id,
-                participant_1,
-                participant_2,
-                meeting_date,
-                start_time,
-                end_time
-            FROM meetings
-            WHERE meeting_date = ?
-            ORDER BY start_time
+                m.id,
+                m.meeting_date,
+                m.start_time,
+                m.end_time,
+                GROUP_CONCAT(mp.employee_name, ', ') AS participants
+            FROM meetings m
+            JOIN meeting_participants mp ON m.id = mp.meeting_id
+            WHERE m.meeting_date = ?
+            GROUP BY m.id
+            ORDER BY m.start_time
             """,
             (meeting_date,),
         )
@@ -203,16 +223,45 @@ def get_meetings_between_dates(start_date, end_date):
         cursor = conn.execute(
             """
             SELECT
-                id,
-                participant_1,
-                participant_2,
-                meeting_date,
-                start_time,
-                end_time
-            FROM meetings
-            WHERE meeting_date BETWEEN ? AND ?
-            ORDER BY meeting_date, start_time
+                m.id,
+                m.meeting_date,
+                m.start_time,
+                m.end_time,
+                GROUP_CONCAT(mp.employee_name, ', ') AS participants
+            FROM meetings m
+            JOIN meeting_participants mp ON m.id = mp.meeting_id
+            WHERE m.meeting_date BETWEEN ? AND ?
+            GROUP BY m.id
+            ORDER BY m.meeting_date, m.start_time
             """,
             (start_date, end_date),
+        )
+        return cursor.fetchall()
+
+
+def get_meetings_for_employees_by_date(employee_names, meeting_date):
+    if not employee_names:
+        return []
+
+    placeholders = ", ".join(["?"] * len(employee_names))
+
+    with get_connection() as conn:
+        cursor = conn.execute(
+            f"""
+            SELECT DISTINCT
+                m.id,
+                m.meeting_date,
+                m.start_time,
+                m.end_time,
+                GROUP_CONCAT(mp_all.employee_name, ', ') AS participants
+            FROM meetings m
+            JOIN meeting_participants mp_filter ON m.id = mp_filter.meeting_id
+            JOIN meeting_participants mp_all ON m.id = mp_all.meeting_id
+            WHERE m.meeting_date = ?
+              AND mp_filter.employee_name IN ({placeholders})
+            GROUP BY m.id
+            ORDER BY m.start_time
+            """,
+            [meeting_date] + employee_names,
         )
         return cursor.fetchall()

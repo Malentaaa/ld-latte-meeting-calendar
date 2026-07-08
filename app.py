@@ -14,6 +14,7 @@ from database import (
     has_meeting_conflict,
     init_db,
     update_employee_department,
+    get_meetings_for_employees_by_date,
 )
 
 
@@ -22,31 +23,33 @@ def meetings_to_dataframe(meetings):
         meetings,
         columns=[
             "ID",
-            "Участник 1",
-            "Участник 2",
             "Дата",
             "Начало",
             "Окончание",
+            "Участники",
         ],
     )
 
 
-def build_day_schedule(meetings, employees):
+def build_day_schedule(meetings, selected_employee_names):
     time_slots = [
         f"{hour:02d}:00"
         for hour in range(8, 21)
     ]
 
-    employee_names = [employee["name"] for employee in employees]
-
     schedule = pd.DataFrame(
-        "",
+        "Свободен",
         index=time_slots,
-        columns=employee_names,
+        columns=selected_employee_names,
     )
 
     for meeting in meetings:
-        _, participant_1, participant_2, _, start_time, end_time = meeting
+        _, _, start_time, end_time, participants_text = meeting
+
+        meeting_participants = [
+            participant.strip()
+            for participant in participants_text.split(",")
+        ]
 
         start_hour = int(start_time.split(":")[0])
         end_hour = int(end_time.split(":")[0])
@@ -57,9 +60,12 @@ def build_day_schedule(meetings, employees):
         for hour in range(start_hour, end_hour):
             slot = f"{hour:02d}:00"
 
-            if slot in schedule.index:
-                schedule.loc[slot, participant_1] = "Занят"
-                schedule.loc[slot, participant_2] = "Занят"
+            if slot not in schedule.index:
+                continue
+
+            for participant in meeting_participants:
+                if participant in schedule.columns:
+                    schedule.loc[slot, participant] = "Занят"
 
     return schedule
 
@@ -67,7 +73,7 @@ def build_day_schedule(meetings, employees):
 def highlight_busy_cells(value):
     if value == "Занят":
         return "background-color: #F4C2C2; color: #4A4A4A; font-weight: 600;"
-    return "background-color: #FFFFFF;"
+    return "background-color: #EAF7EA; color: #3A3A3A;"
 
 
 st.set_page_config(
@@ -171,43 +177,48 @@ with st.form("meeting_form"):
     col1, col2 = st.columns(2)
 
     with col1:
-        participant_1_label = st.selectbox("Участник 1", options=employee_labels, index=None)
-        meeting_date = st.date_input("Дата встречи", value=date.today())
+        selected_participant_labels = st.multiselect(
+            "Участники встречи",
+            options=employee_labels,
+            placeholder="Выберите двух или более сотрудников",
+        )
+
+        meeting_date = st.date_input(
+            "Дата встречи",
+            value=date.today(),
+        )
 
     with col2:
-        participant_2_label = st.selectbox("Участник 2", options=employee_labels, index=None)
-        start_time = st.time_input("Время начала", value=time(10, 0))
-        end_time = st.time_input("Время окончания", value=time(11, 0))
+        start_time = st.time_input(
+            "Время начала",
+            value=time(10, 0),
+        )
+
+        end_time = st.time_input(
+            "Время окончания",
+            value=time(11, 0),
+        )
 
     submitted = st.form_submit_button("Добавить встречу")
 
 if submitted:
     meeting_start_datetime = datetime.combine(meeting_date, start_time)
 
-    participant_1 = (
-        employee_by_label[participant_1_label]["name"]
-        if participant_1_label
-        else None
-    )
-    participant_2 = (
-        employee_by_label[participant_2_label]["name"]
-        if participant_2_label
-        else None
-    )
+    selected_participants = [
+        employee_by_label[label]["name"]
+        for label in selected_participant_labels
+    ]
 
     if not employees:
         st.error("Сначала добавьте сотрудников в справочник.")
-    elif not participant_1 or not participant_2:
-        st.error("Выберите обоих участников встречи.")
-    elif participant_1.strip().lower() == participant_2.strip().lower():
-        st.error("Участники должны быть разными.")
+    elif len(selected_participants) < 2:
+        st.error("Выберите минимум двух участников встречи.")
     elif start_time >= end_time:
         st.error("Время окончания должно быть позже времени начала.")
     elif meeting_start_datetime <= datetime.now():
         st.error("Нельзя создать встречу в прошлом. Выбери дату и время позже текущего момента.")
     elif has_meeting_conflict(
-        participant_1=participant_1,
-        participant_2=participant_2,
+        participants=selected_participants,
         meeting_date=meeting_date.isoformat(),
         start_time=start_time.strftime("%H:%M"),
         end_time=end_time.strftime("%H:%M"),
@@ -215,8 +226,7 @@ if submitted:
         st.error("Слот занят: у одного из участников уже есть встреча в это время.")
     else:
         add_meeting(
-            participant_1=participant_1.strip(),
-            participant_2=participant_2.strip(),
+            participants=selected_participants,
             meeting_date=meeting_date.isoformat(),
             start_time=start_time.strftime("%H:%M"),
             end_time=end_time.strftime("%H:%M"),
@@ -236,13 +246,31 @@ tab_day, tab_week, tab_all = st.tabs(
 )
 
 with tab_day:
+    selected_schedule_labels = st.multiselect(
+        "Чьё расписание показать",
+        options=employee_labels,
+        placeholder="Выберите одного или нескольких сотрудников",
+        key="day_schedule_employees",
+    )
+
+    selected_schedule_employees = [
+        employee_by_label[label]["name"]
+        for label in selected_schedule_labels
+    ]
+
     selected_day = st.date_input(
         "Выберите день",
         value=date.today(),
         key="day_schedule_date",
     )
 
-    day_meetings = get_meetings_by_date(selected_day.isoformat())
+    if selected_schedule_employees:
+        day_meetings = get_meetings_for_employees_by_date(
+            selected_schedule_employees,
+            selected_day.isoformat(),
+        )
+    else:
+        day_meetings = get_meetings_by_date(selected_day.isoformat())
 
     st.markdown("### Список встреч на день")
 
@@ -252,16 +280,17 @@ with tab_day:
     else:
         st.info("На выбранный день встреч нет.")
 
-    st.markdown("### Занятость сотрудников по времени")
+    st.markdown("### Занятость выбранных сотрудников")
 
-    if employees:
-        schedule_df = build_day_schedule(day_meetings, employees)
+    if not selected_schedule_employees:
+        st.info("Выберите сотрудников, чтобы посмотреть их занятые и свободные слоты.")
+    else:
+        schedule_df = build_day_schedule(day_meetings, selected_schedule_employees)
         st.dataframe(
             schedule_df.style.applymap(highlight_busy_cells),
             use_container_width=True,
+            height=500,
         )
-    else:
-        st.info("Сначала добавьте сотрудников в справочник.")
 
 with tab_week:
     selected_week_start = st.date_input(
