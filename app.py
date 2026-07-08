@@ -3,7 +3,7 @@ from datetime import date, datetime, time
 import pandas as pd
 import streamlit as st
 
-from database import add_meeting, get_meetings, init_db
+from database import add_meeting, get_meetings, has_meeting_conflict, init_db
 
 
 st.set_page_config(
@@ -46,6 +46,14 @@ if submitted:
         st.error("Время окончания должно быть позже времени начала.")
     elif meeting_start_datetime <= datetime.now():
         st.error("Нельзя создать встречу в прошлом. Выбери дату и время позже текущего момента.")
+    elif has_meeting_conflict(
+        participant_1=participant_1,
+        participant_2=participant_2,
+        meeting_date=meeting_date.isoformat(),
+        start_time=start_time.strftime("%H:%M"),
+        end_time=end_time.strftime("%H:%M"),
+    ):
+        st.error("Слот занят: у одного из участников уже есть встреча в это время.")
     else:
         add_meeting(
             participant_1=participant_1.strip(),
