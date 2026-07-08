@@ -1,12 +1,18 @@
 from datetime import date, time
 
+import pandas as pd
 import streamlit as st
+
+from database import add_meeting, get_meetings, init_db
+
 
 st.set_page_config(
     page_title="LD LATTE Meeting Calendar",
     page_icon="📅",
     layout="wide",
 )
+
+init_db()
 
 st.title("LD LATTE Meeting Calendar")
 st.write("Прототип календаря встреч компании")
@@ -37,7 +43,33 @@ if submitted:
     elif start_time >= end_time:
         st.error("Время окончания должно быть позже времени начала.")
     else:
-        st.success(
-            f"Встреча добавлена: {participant_1} — {participant_2}, "
-            f"{meeting_date}, {start_time.strftime('%H:%M')}–{end_time.strftime('%H:%M')}"
+        add_meeting(
+            participant_1=participant_1.strip(),
+            participant_2=participant_2.strip(),
+            meeting_date=meeting_date.isoformat(),
+            start_time=start_time.strftime("%H:%M"),
+            end_time=end_time.strftime("%H:%M"),
         )
+        st.success("Встреча добавлена.")
+
+st.divider()
+
+st.subheader("Список встреч")
+
+meetings = get_meetings()
+
+if meetings:
+    df = pd.DataFrame(
+        meetings,
+        columns=[
+            "ID",
+            "Участник 1",
+            "Участник 2",
+            "Дата",
+            "Начало",
+            "Окончание",
+        ],
+    )
+    st.dataframe(df, use_container_width=True, hide_index=True)
+else:
+    st.info("Пока встреч нет.")
