@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -9,10 +9,65 @@ from database import (
     delete_employee,
     get_employees,
     get_meetings,
+    get_meetings_between_dates,
+    get_meetings_by_date,
     has_meeting_conflict,
     init_db,
     update_employee_department,
 )
+
+
+def meetings_to_dataframe(meetings):
+    return pd.DataFrame(
+        meetings,
+        columns=[
+            "ID",
+            "Участник 1",
+            "Участник 2",
+            "Дата",
+            "Начало",
+            "Окончание",
+        ],
+    )
+
+
+def build_day_schedule(meetings, employees):
+    time_slots = [
+        f"{hour:02d}:00"
+        for hour in range(8, 21)
+    ]
+
+    employee_names = [employee["name"] for employee in employees]
+
+    schedule = pd.DataFrame(
+        "",
+        index=time_slots,
+        columns=employee_names,
+    )
+
+    for meeting in meetings:
+        _, participant_1, participant_2, _, start_time, end_time = meeting
+
+        start_hour = int(start_time.split(":")[0])
+        end_hour = int(end_time.split(":")[0])
+
+        if end_time.split(":")[1] != "00":
+            end_hour += 1
+
+        for hour in range(start_hour, end_hour):
+            slot = f"{hour:02d}:00"
+
+            if slot in schedule.index:
+                schedule.loc[slot, participant_1] = "Занят"
+                schedule.loc[slot, participant_2] = "Занят"
+
+    return schedule
+
+
+def highlight_busy_cells(value):
+    if value == "Занят":
+        return "background-color: #F4C2C2; color: #4A4A4A; font-weight: 600;"
+    return "background-color: #FFFFFF;"
 
 
 st.set_page_config(
@@ -170,22 +225,73 @@ if submitted:
 
 st.divider()
 
-st.subheader("Список встреч")
+st.subheader("Расписание встреч")
 
-meetings = get_meetings()
+tab_day, tab_week, tab_all = st.tabs(
+    [
+        "День",
+        "Неделя",
+        "Все встречи",
+    ]
+)
 
-if meetings:
-    df = pd.DataFrame(
-        meetings,
-        columns=[
-            "ID",
-            "Участник 1",
-            "Участник 2",
-            "Дата",
-            "Начало",
-            "Окончание",
-        ],
+with tab_day:
+    selected_day = st.date_input(
+        "Выберите день",
+        value=date.today(),
+        key="day_schedule_date",
     )
-    st.dataframe(df, use_container_width=True, hide_index=True)
-else:
-    st.info("Пока встреч нет.")
+
+    day_meetings = get_meetings_by_date(selected_day.isoformat())
+
+    st.markdown("### Список встреч на день")
+
+    if day_meetings:
+        day_df = meetings_to_dataframe(day_meetings)
+        st.dataframe(day_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("На выбранный день встреч нет.")
+
+    st.markdown("### Занятость сотрудников по времени")
+
+    if employees:
+        schedule_df = build_day_schedule(day_meetings, employees)
+        st.dataframe(
+            schedule_df.style.applymap(highlight_busy_cells),
+            use_container_width=True,
+        )
+    else:
+        st.info("Сначала добавьте сотрудников в справочник.")
+
+with tab_week:
+    selected_week_start = st.date_input(
+        "Выберите начало недели",
+        value=date.today(),
+        key="week_schedule_start",
+    )
+
+    selected_week_end = selected_week_start + timedelta(days=6)
+
+    st.caption(
+        f"Период: {selected_week_start.isoformat()} — {selected_week_end.isoformat()}"
+    )
+
+    week_meetings = get_meetings_between_dates(
+        selected_week_start.isoformat(),
+        selected_week_end.isoformat(),
+    )
+
+    if week_meetings:
+        week_df = meetings_to_dataframe(week_meetings)
+        st.dataframe(week_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("На выбранную неделю встреч нет.")
+
+with tab_all:
+    all_meetings = get_meetings()
+
+    if all_meetings:
+        all_df = meetings_to_dataframe(all_meetings)
+        st.dataframe(all_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Пока встреч нет.")

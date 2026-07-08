@@ -176,3 +176,43 @@ def update_employee_department(employee_id, new_department):
             (normalized_department, employee_id),
         )
         conn.commit()
+
+
+def get_meetings_by_date(meeting_date):
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            SELECT
+                id,
+                participant_1,
+                participant_2,
+                meeting_date,
+                start_time,
+                end_time
+            FROM meetings
+            WHERE meeting_date = ?
+            ORDER BY start_time
+            """,
+            (meeting_date,),
+        )
+        return cursor.fetchall()
+
+
+def get_meetings_between_dates(start_date, end_date):
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            SELECT
+                id,
+                participant_1,
+                participant_2,
+                meeting_date,
+                start_time,
+                end_time
+            FROM meetings
+            WHERE meeting_date BETWEEN ? AND ?
+            ORDER BY meeting_date, start_time
+            """,
+            (start_date, end_date),
+        )
+        return cursor.fetchall()
