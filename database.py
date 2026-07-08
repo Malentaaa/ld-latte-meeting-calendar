@@ -28,7 +28,9 @@ def init_db():
             """
             CREATE TABLE IF NOT EXISTS employees (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE
+                name TEXT NOT NULL,
+                department TEXT NOT NULL,
+                UNIQUE(name, department)
             )
             """
         )
@@ -114,16 +116,17 @@ def has_meeting_conflict(participant_1, participant_2, meeting_date, start_time,
     return False
 
 
-def add_employee(name):
+def add_employee(name, department):
     normalized_name = name.strip()
+    normalized_department = department.strip()
 
     with get_connection() as conn:
         conn.execute(
             """
-            INSERT INTO employees (name)
-            VALUES (?)
+            INSERT INTO employees (name, department)
+            VALUES (?, ?)
             """,
-            (normalized_name,),
+            (normalized_name, normalized_department),
         )
         conn.commit()
 
@@ -132,9 +135,16 @@ def get_employees():
     with get_connection() as conn:
         cursor = conn.execute(
             """
-            SELECT name
+            SELECT name, department
             FROM employees
-            ORDER BY name
+            ORDER BY department, name
             """
         )
-        return [row[0] for row in cursor.fetchall()]
+        return [
+            {
+                "name": row[0],
+                "department": row[1],
+                "label": f"{row[0]} · {row[1]}",
+            }
+            for row in cursor.fetchall()
+        ]

@@ -29,20 +29,32 @@ st.divider()
 st.subheader("Справочник сотрудников")
 
 with st.form("employee_form"):
-    new_employee = st.text_input("Имя сотрудника", placeholder="Например: Анна Иванова")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        new_employee = st.text_input("Имя сотрудника", placeholder="Например: Анна Иванова")
+
+    with col2:
+        new_department = st.text_input("Отдел", placeholder="Например: Маркетинг")
+
     employee_submitted = st.form_submit_button("Добавить сотрудника")
 
 if employee_submitted:
     if not new_employee.strip():
         st.error("Введите имя сотрудника.")
+    elif not new_department.strip():
+        st.error("Введите отдел сотрудника.")
     else:
         try:
-            add_employee(new_employee)
-            st.success(f"Сотрудник добавлен: {new_employee.strip()}")
+            add_employee(new_employee, new_department)
+            st.success(f"Сотрудник добавлен: {new_employee.strip()} · {new_department.strip()}")
         except Exception:
-            st.error("Такой сотрудник уже есть в справочнике.")
+            st.error("Такой сотрудник уже есть в этом отделе.")
 
 employees = get_employees()
+
+employee_labels = [employee["label"] for employee in employees]
+employee_by_label = {employee["label"]: employee for employee in employees}
 
 if employees:
     st.caption(f"В справочнике сотрудников: {len(employees)}")
@@ -57,11 +69,11 @@ with st.form("meeting_form"):
     col1, col2 = st.columns(2)
 
     with col1:
-        participant_1 = st.selectbox("Участник 1", options=employees, index=None)
+        participant_1_label = st.selectbox("Участник 1", options=employee_labels, index=None)
         meeting_date = st.date_input("Дата встречи", value=date.today())
 
     with col2:
-        participant_2 = st.selectbox("Участник 2", options=employees, index=None)
+        participant_2_label = st.selectbox("Участник 2", options=employee_labels, index=None)
         start_time = st.time_input("Время начала", value=time(10, 0))
         end_time = st.time_input("Время окончания", value=time(11, 0))
 
@@ -69,6 +81,17 @@ with st.form("meeting_form"):
 
 if submitted:
     meeting_start_datetime = datetime.combine(meeting_date, start_time)
+
+    participant_1 = (
+        employee_by_label[participant_1_label]["name"]
+        if participant_1_label
+        else None
+    )
+    participant_2 = (
+        employee_by_label[participant_2_label]["name"]
+        if participant_2_label
+        else None
+    )
 
     if not employees:
         st.error("Сначала добавьте сотрудников в справочник.")
