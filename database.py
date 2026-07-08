@@ -23,8 +23,17 @@ def init_db():
             )
             """
         )
-        conn.commit()
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS employees (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            )
+            """
+        )
+
+        conn.commit()
 
 def add_meeting(participant_1, participant_2, meeting_date, start_time, end_time):
     with get_connection() as conn:
@@ -103,3 +112,29 @@ def has_meeting_conflict(participant_1, participant_2, meeting_date, start_time,
             return True
 
     return False
+
+
+def add_employee(name):
+    normalized_name = name.strip()
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO employees (name)
+            VALUES (?)
+            """,
+            (normalized_name,),
+        )
+        conn.commit()
+
+
+def get_employees():
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            SELECT name
+            FROM employees
+            ORDER BY name
+            """
+        )
+        return [row[0] for row in cursor.fetchall()]
