@@ -1,4 +1,4 @@
-from datetime import date, time
+from datetime import date, datetime, time
 
 import pandas as pd
 import streamlit as st
@@ -36,12 +36,16 @@ with st.form("meeting_form"):
     submitted = st.form_submit_button("Добавить встречу")
 
 if submitted:
+    meeting_start_datetime = datetime.combine(meeting_date, start_time)
+
     if not participant_1 or not participant_2:
         st.error("Заполни обоих участников встречи.")
     elif participant_1.strip().lower() == participant_2.strip().lower():
         st.error("Участники должны быть разными.")
     elif start_time >= end_time:
         st.error("Время окончания должно быть позже времени начала.")
+    elif meeting_start_datetime <= datetime.now():
+        st.error("Нельзя создать встречу в прошлом. Выбери дату и время позже текущего момента.")
     else:
         add_meeting(
             participant_1=participant_1.strip(),
