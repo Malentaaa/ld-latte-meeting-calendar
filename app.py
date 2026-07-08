@@ -1,3 +1,4 @@
+import base64
 from datetime import date, datetime, time, timedelta
 
 import pandas as pd
@@ -17,6 +18,19 @@ from database import (
     get_meetings_for_employees_by_date,
 )
 
+
+def load_css(file_path):
+    with open(file_path, encoding="utf-8") as css_file:
+        st.markdown(
+            f"<style>{css_file.read()}</style>",
+            unsafe_allow_html=True,
+        )
+
+
+def image_to_base64(file_path):
+    with open(file_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode()
+    
 
 def meetings_to_dataframe(meetings):
     return pd.DataFrame(
@@ -77,15 +91,26 @@ def highlight_busy_cells(value):
 
 
 st.set_page_config(
-    page_title="LD LATTE Meeting Calendar",
+    page_title="Календарь внутренних встреч",
     page_icon="📅",
     layout="wide",
 )
 
+load_css("styles.css")
+
 init_db()
 
-st.title("LD LATTE Meeting Calendar")
-st.write("Прототип календаря встреч компании")
+logo_base64 = image_to_base64("assets/logo.png")
+
+st.markdown(
+    f"""
+    <div class="app-header-centered">
+        <img src="data:image/png;base64,{logo_base64}" class="app-logo">
+        <div class="app-title">Календарь внутренних встреч</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.divider()
 
