@@ -49,6 +49,91 @@ def meetings_to_dataframe(meetings):
     )
 
 
+def time_to_minutes(time_value):
+    hour, minute = map(int, time_value.split(":"))
+    return hour * 60 + minute
+
+
+def minutes_to_time(minutes):
+    hour = minutes // 60
+    minute = minutes % 60
+    return f"{hour:02d}:{minute:02d}"
+
+
+def find_common_free_slots(meetings, selected_employee_names):
+    workday_start = 8 * 60
+    workday_end = 20 * 60
+    step = 15
+
+    busy_slots = {
+        employee: set()
+        for employee in selected_employee_names
+    }
+
+    for meeting in meetings:
+        (
+            _,
+            _title,
+            _meeting_type,
+            _description,
+            _materials_link,
+            _meeting_date,
+            start_time,
+            end_time,
+            participants_text,
+        ) = meeting
+
+        meeting_participants = [
+            participant.strip()
+            for participant in participants_text.split(",")
+        ]
+
+        start_minutes = time_to_minutes(start_time)
+        end_minutes = time_to_minutes(end_time)
+
+        for participant in meeting_participants:
+            if participant not in busy_slots:
+                continue
+
+            for minute in range(start_minutes, end_minutes, step):
+                busy_slots[participant].add(minute)
+
+    free_points = []
+
+    for minute in range(workday_start, workday_end, step):
+        all_free = all(
+            minute not in busy_slots[employee]
+            for employee in selected_employee_names
+        )
+
+        if all_free:
+            free_points.append(minute)
+
+    if not free_points:
+        return []
+
+    free_intervals = []
+
+    interval_start = free_points[0]
+    previous_point = free_points[0]
+
+    for point in free_points[1:]:
+        if point == previous_point + step:
+            previous_point = point
+        else:
+            free_intervals.append(
+                f"{minutes_to_time(interval_start)}–{minutes_to_time(previous_point + step)}"
+            )
+            interval_start = point
+            previous_point = point
+
+    free_intervals.append(
+        f"{minutes_to_time(interval_start)}–{minutes_to_time(previous_point + step)}"
+    )
+
+    return free_intervals
+
+
 def build_day_schedule(meetings, selected_employee_names):
     time_slots = [f"{hour:02d}:00" for hour in range(8, 21)]
 
@@ -410,6 +495,20 @@ with tab_day:
         )
     else:
         day_meetings = get_meetings_by_date(selected_day.isoformat())
+    
+    if selected_schedule_employees:
+        if st.button("Найти свободные слоты"):
+            free_slots = find_common_free_slots(
+                day_meetings,
+                selected_schedule_employees,
+            )
+
+            if free_slots:
+                st.success("Общие свободные слоты:")
+                for slot in free_slots:
+                    st.write(f"• {slot}")
+            else:
+                st.warning("На выбранную дату общих свободных слотов не найдено.")
 
     st.markdown("### Список встреч на день")
 
