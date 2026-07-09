@@ -15,6 +15,10 @@ def init_db():
             """
             CREATE TABLE IF NOT EXISTS meetings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                meeting_type TEXT NOT NULL,
+                description TEXT,
+                materials_link TEXT,
                 meeting_date TEXT NOT NULL,
                 start_time TEXT NOT NULL,
                 end_time TEXT NOT NULL
@@ -46,18 +50,35 @@ def init_db():
         conn.commit()
 
 
-def add_meeting(participants, meeting_date, start_time, end_time):
+def add_meeting(
+    title,
+    meeting_type,
+    description,
+    materials_link,
+    participants,
+    meeting_date,
+    start_time,
+    end_time,
+):
     with get_connection() as conn:
         cursor = conn.execute(
             """
             INSERT INTO meetings (
+                title,
+                meeting_type,
+                description,
+                materials_link,
                 meeting_date,
                 start_time,
                 end_time
             )
-            VALUES (?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                title,
+                meeting_type,
+                description,
+                materials_link,
                 meeting_date,
                 start_time,
                 end_time,
@@ -90,6 +111,10 @@ def get_meetings():
             """
             SELECT
                 m.id,
+                m.title,
+                m.meeting_type,
+                m.description,
+                m.materials_link,
                 m.meeting_date,
                 m.start_time,
                 m.end_time,
@@ -203,6 +228,10 @@ def get_meetings_by_date(meeting_date):
             """
             SELECT
                 m.id,
+                m.title,
+                m.meeting_type,
+                m.description,
+                m.materials_link,
                 m.meeting_date,
                 m.start_time,
                 m.end_time,
@@ -224,6 +253,10 @@ def get_meetings_between_dates(start_date, end_date):
             """
             SELECT
                 m.id,
+                m.title,
+                m.meeting_type,
+                m.description,
+                m.materials_link,
                 m.meeting_date,
                 m.start_time,
                 m.end_time,
@@ -250,6 +283,10 @@ def get_meetings_for_employees_by_date(employee_names, meeting_date):
             f"""
             SELECT DISTINCT
                 m.id,
+                m.title,
+                m.meeting_type,
+                m.description,
+                m.materials_link,
                 m.meeting_date,
                 m.start_time,
                 m.end_time,

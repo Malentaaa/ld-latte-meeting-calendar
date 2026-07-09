@@ -37,6 +37,10 @@ def meetings_to_dataframe(meetings):
         meetings,
         columns=[
             "ID",
+            "Тема",
+            "Тип",
+            "Повестка",
+            "Материалы",
             "Дата",
             "Начало",
             "Окончание",
@@ -46,10 +50,7 @@ def meetings_to_dataframe(meetings):
 
 
 def build_day_schedule(meetings, selected_employee_names):
-    time_slots = [
-        f"{hour:02d}:00"
-        for hour in range(8, 21)
-    ]
+    time_slots = [f"{hour:02d}:00" for hour in range(8, 21)]
 
     schedule = pd.DataFrame(
         "Свободен",
@@ -58,7 +59,17 @@ def build_day_schedule(meetings, selected_employee_names):
     )
 
     for meeting in meetings:
-        _, _, start_time, end_time, participants_text = meeting
+        (
+            _,
+            title,
+            meeting_type,
+            _description,
+            _materials_link,
+            _meeting_date,
+            start_time,
+            end_time,
+            participants_text,
+        ) = meeting
 
         meeting_participants = [
             participant.strip()
@@ -79,16 +90,81 @@ def build_day_schedule(meetings, selected_employee_names):
 
             for participant in meeting_participants:
                 if participant in schedule.columns:
-                    schedule.loc[slot, participant] = "Занят"
+                    schedule.loc[slot, participant] = f"{meeting_type}\n{title}"
 
     return schedule
 
 
 def highlight_busy_cells(value):
-    if value == "Занят":
-        return "background-color: #F4C2C2; color: #4A4A4A; font-weight: 600;"
-    return "background-color: #EAF7EA; color: #3A3A3A;"
+    if value == "Свободен":
+        return "background-color: #fffafb; color: #8d747b;"
 
+    if "Инцидент / проблема" in value:
+        return "background-color: #f2b8b5; color: #4a1f1f; font-weight: 700; white-space: pre-wrap;"
+
+    if "Внешняя встреча" in value:
+        return "background-color: #d8e3ea; color: #203947; font-weight: 700; white-space: pre-wrap;"
+
+    if "Производство / швейный цех" in value:
+        return "background-color: #f6c89f; color: #4a2a11; font-weight: 700; white-space: pre-wrap;"
+
+    if "Контроль качества" in value:
+        return "background-color: #e7b7c8; color: #4a2030; font-weight: 700; white-space: pre-wrap;"
+
+    if "Дизайн / коллекция" in value:
+        return "background-color: #ddd3ef; color: #34294a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Конструирование / лекала" in value:
+        return "background-color: #cfc2e8; color: #30204a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Закупка тканей и фурнитуры" in value:
+        return "background-color: #cfe4ef; color: #203947; font-weight: 700; white-space: pre-wrap;"
+
+    if "Фото / контент" in value:
+        return "background-color: #eadcf5; color: #3f2d4a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Карточки товара" in value:
+        return "background-color: #e8cfd5; color: #3f3434; font-weight: 700; white-space: pre-wrap;"
+
+    if "Маркетинг / реклама" in value:
+        return "background-color: #f4e3a1; color: #4a3b11; font-weight: 700; white-space: pre-wrap;"
+
+    if "Продажи / маркетплейсы" in value:
+        return "background-color: #cfe8d6; color: #1f3f2a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Аналитика продаж" in value:
+        return "background-color: #cfe8e3; color: #1f3f3a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Планирование" in value:
+        return "background-color: #d8d8f0; color: #25254a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Логистика / отгрузки" in value:
+        return "background-color: #c9dff2; color: #1f344a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Финансы / закупки" in value:
+        return "background-color: #eadfd6; color: #3f3434; font-weight: 700; white-space: pre-wrap;"
+
+    return "background-color: #eadfd6; color: #3f3434; font-weight: 700; white-space: pre-wrap;"
+
+
+MEETING_TYPES = [
+    "Общее обсуждение",
+    "Внешняя встреча",
+    "Дизайн / коллекция",
+    "Конструирование / лекала",
+    "Закупка тканей и фурнитуры",
+    "Производство / швейный цех",
+    "Контроль качества",
+    "Фото / контент",
+    "Карточки товара",
+    "Маркетинг / реклама",
+    "Продажи / маркетплейсы",
+    "Аналитика продаж",
+    "Планирование",
+    "Логистика / отгрузки",
+    "Финансы / закупки",
+    "Инцидент / проблема",
+]
 
 st.set_page_config(
     page_title="Календарь внутренних встреч",
@@ -120,10 +196,16 @@ with st.form("employee_form"):
     col1, col2 = st.columns(2)
 
     with col1:
-        new_employee = st.text_input("Имя сотрудника", placeholder="Например: Анна Иванова")
+        new_employee = st.text_input(
+            "Имя сотрудника",
+            placeholder="Например: Анна Иванова",
+        )
 
     with col2:
-        new_department = st.text_input("Отдел", placeholder="Например: Маркетинг")
+        new_department = st.text_input(
+            "Отдел",
+            placeholder="Например: Производство",
+        )
 
     employee_submitted = st.form_submit_button("Добавить сотрудника")
 
@@ -202,10 +284,20 @@ with st.form("meeting_form"):
     col1, col2 = st.columns(2)
 
     with col1:
+        meeting_title = st.text_input(
+            "Тема встречи",
+            placeholder="Например: Встреча с поставщиком тканей",
+        )
+
+        meeting_type = st.selectbox(
+            "Тип встречи",
+            options=MEETING_TYPES,
+        )
+
         selected_participant_labels = st.multiselect(
             "Участники встречи",
             options=employee_labels,
-            placeholder="Выберите двух или более сотрудников",
+            placeholder="Выберите одного или нескольких сотрудников",
         )
 
         meeting_date = st.date_input(
@@ -217,11 +309,27 @@ with st.form("meeting_form"):
         start_time = st.time_input(
             "Время начала",
             value=time(10, 0),
+            step=900,
         )
 
         end_time = st.time_input(
             "Время окончания",
             value=time(11, 0),
+            step=900,
+        )
+
+        meeting_description = st.text_area(
+            "Повестка / описание",
+            placeholder=(
+                "Например: обсудить сроки пошива партии, проблемные размеры, "
+                "статус лекал, остатки ткани или подготовку карточек товара"
+            ),
+            height=100,
+        )
+
+        materials_link = st.text_input(
+            "Ссылка на материалы",
+            placeholder="Ссылка на таблицу, задачу, фото дефекта, карточку товара или макет коллекции",
         )
 
     submitted = st.form_submit_button("Добавить встречу")
@@ -236,8 +344,10 @@ if submitted:
 
     if not employees:
         st.error("Сначала добавьте сотрудников в справочник.")
-    elif len(selected_participants) < 2:
-        st.error("Выберите минимум двух участников встречи.")
+    elif not meeting_title.strip():
+        st.error("Введите тему встречи.")
+    elif len(selected_participants) < 1:
+        st.error("Выберите минимум одного участника встречи.")
     elif start_time >= end_time:
         st.error("Время окончания должно быть позже времени начала.")
     elif meeting_start_datetime <= datetime.now():
@@ -251,6 +361,10 @@ if submitted:
         st.error("Слот занят: у одного из участников уже есть встреча в это время.")
     else:
         add_meeting(
+            title=meeting_title.strip(),
+            meeting_type=meeting_type,
+            description=meeting_description.strip(),
+            materials_link=materials_link.strip(),
             participants=selected_participants,
             meeting_date=meeting_date.isoformat(),
             start_time=start_time.strftime("%H:%M"),
