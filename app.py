@@ -180,8 +180,125 @@ def build_day_schedule(meetings, selected_employee_names):
     return schedule
 
 
+def build_week_calendar(week_meetings, week_start_date):
+    time_slots = [f"{hour:02d}:00" for hour in range(8, 21)]
+
+    week_days = [
+        week_start_date + timedelta(days=day)
+        for day in range(7)
+    ]
+
+    columns = [
+        format_weekday_ru(day)
+        for day in week_days
+    ]
+
+    calendar = pd.DataFrame(
+        "",
+        index=time_slots,
+        columns=columns,
+    )
+
+    for meeting in week_meetings:
+        (
+            _,
+            title,
+            meeting_type,
+            _description,
+            _materials_link,
+            meeting_date,
+            start_time,
+            end_time,
+            _participants_text,
+        ) = meeting
+
+        meeting_date_obj = datetime.fromisoformat(meeting_date).date()
+
+        if meeting_date_obj not in week_days:
+            continue
+
+        day_column = format_weekday_ru(meeting_date_obj)
+
+        start_hour = int(start_time.split(":")[0])
+        end_hour = int(end_time.split(":")[0])
+
+        if end_time.split(":")[1] != "00":
+            end_hour += 1
+
+        meeting_text = (
+            f"{start_time}–{end_time}\n"
+            f"{meeting_type}\n"
+            f"{title}"
+        )
+
+        for hour in range(start_hour, end_hour):
+            slot = f"{hour:02d}:00"
+
+            if slot not in calendar.index:
+                continue
+
+            if calendar.loc[slot, day_column]:
+                calendar.loc[slot, day_column] += f"\n\n{meeting_text}"
+            else:
+                calendar.loc[slot, day_column] = meeting_text
+
+    return calendar
+
+
 def highlight_busy_cells(value):
     if value == "Свободен":
+        return "background-color: #fffafb; color: #8d747b;"
+
+    if "Инцидент / проблема" in value:
+        return "background-color: #f2b8b5; color: #4a1f1f; font-weight: 700; white-space: pre-wrap;"
+
+    if "Внешняя встреча" in value:
+        return "background-color: #d8e3ea; color: #203947; font-weight: 700; white-space: pre-wrap;"
+
+    if "Производство / швейный цех" in value:
+        return "background-color: #f6c89f; color: #4a2a11; font-weight: 700; white-space: pre-wrap;"
+
+    if "Контроль качества" in value:
+        return "background-color: #e7b7c8; color: #4a2030; font-weight: 700; white-space: pre-wrap;"
+
+    if "Дизайн / коллекция" in value:
+        return "background-color: #ddd3ef; color: #34294a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Конструирование / лекала" in value:
+        return "background-color: #cfc2e8; color: #30204a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Закупка тканей и фурнитуры" in value:
+        return "background-color: #cfe4ef; color: #203947; font-weight: 700; white-space: pre-wrap;"
+
+    if "Фото / контент" in value:
+        return "background-color: #eadcf5; color: #3f2d4a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Карточки товара" in value:
+        return "background-color: #e8cfd5; color: #3f3434; font-weight: 700; white-space: pre-wrap;"
+
+    if "Маркетинг / реклама" in value:
+        return "background-color: #f4e3a1; color: #4a3b11; font-weight: 700; white-space: pre-wrap;"
+
+    if "Продажи / маркетплейсы" in value:
+        return "background-color: #cfe8d6; color: #1f3f2a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Аналитика продаж" in value:
+        return "background-color: #cfe8e3; color: #1f3f3a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Планирование" in value:
+        return "background-color: #d8d8f0; color: #25254a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Логистика / отгрузки" in value:
+        return "background-color: #c9dff2; color: #1f344a; font-weight: 700; white-space: pre-wrap;"
+
+    if "Финансы / закупки" in value:
+        return "background-color: #eadfd6; color: #3f3434; font-weight: 700; white-space: pre-wrap;"
+
+    return "background-color: #eadfd6; color: #3f3434; font-weight: 700; white-space: pre-wrap;"
+
+
+def highlight_calendar_cells(value):
+    if not value:
         return "background-color: #fffafb; color: #8d747b;"
 
     if "Инцидент / проблема" in value:
@@ -250,6 +367,21 @@ MEETING_TYPES = [
     "Финансы / закупки",
     "Инцидент / проблема",
 ]
+
+
+def format_weekday_ru(day):
+    weekdays = {
+        0: "Пн",
+        1: "Вт",
+        2: "Ср",
+        3: "Чт",
+        4: "Пт",
+        5: "Сб",
+        6: "Вс",
+    }
+
+    return f"{weekdays[day.weekday()]} {day.strftime('%d.%m')}"
+
 
 st.set_page_config(
     page_title="Календарь внутренних встреч",
@@ -539,20 +671,58 @@ with tab_week:
 
     selected_week_end = selected_week_start + timedelta(days=6)
 
+    selected_week_labels = st.multiselect(
+        "Чьё недельное расписание показать",
+        options=employee_labels,
+        placeholder="Выберите одного или нескольких сотрудников",
+        key="week_schedule_employees",
+    )
+
+    selected_week_employees = [
+        employee_by_label[label]["name"]
+        for label in selected_week_labels
+    ]
+
     st.caption(
         f"Период: {selected_week_start.isoformat()} — {selected_week_end.isoformat()}"
     )
 
-    week_meetings = get_meetings_between_dates(
-        selected_week_start.isoformat(),
-        selected_week_end.isoformat(),
-    )
-
-    if week_meetings:
-        week_df = meetings_to_dataframe(week_meetings)
-        st.dataframe(week_df, use_container_width=True, hide_index=True)
+    if not selected_week_employees:
+        st.info("Выберите сотрудника, чтобы посмотреть его недельное расписание.")
     else:
-        st.info("На выбранную неделю встреч нет.")
+        week_meetings = []
+
+        for day_offset in range(7):
+            current_day = selected_week_start + timedelta(days=day_offset)
+            day_records = get_meetings_for_employees_by_date(
+                selected_week_employees,
+                current_day.isoformat(),
+            )
+            week_meetings.extend(day_records)
+
+        st.markdown("### Календарная сетка недели")
+
+        if week_meetings:
+            week_calendar_df = build_week_calendar(
+                week_meetings,
+                selected_week_start,
+            )
+
+            st.dataframe(
+                week_calendar_df.style.applymap(highlight_calendar_cells),
+                use_container_width=True,
+                height=620,
+            )
+        else:
+            st.info("У выбранных сотрудников нет встреч на эту неделю.")
+
+        st.markdown("### Список встреч на неделю")
+
+        if week_meetings:
+            week_df = meetings_to_dataframe(week_meetings)
+            st.dataframe(week_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("Список встреч пуст.")
 
 with tab_all:
     all_meetings = get_meetings()
